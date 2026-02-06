@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Global Dashboard Controller</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background-color: #000; }
+        iframe { 
+            width: 100%; 
+            height: 100%; 
+            border: none; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 800ms ease-in-out;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+        iframe.active { 
+            opacity: 1; 
+            pointer-events: auto;
+            z-index: 2;
+        }
+    </style>
+</head>
+<body>
+    <!-- Order: Auburn (4 topics), Nepal (4 topics), Dallas (3 topics) -->
+    <iframe id="frame1" src="auburn.html" class="active"></iframe>
+    <iframe id="frame2" src="nepal.html"></iframe>
+    <iframe id="frame3" src="dallas.html"></iframe>
+
+    <script>
+        const order = ['frame1', 'frame2', 'frame3'];
+        let idx = 0;
+        const SLIDE_DURATION = 7000; // 7 seconds per internal topic
+
+        // Default slide counts if detection fails
+        const slideCounts = { 'frame1': 4, 'frame2': 4, 'frame3': 3 };
+
+        function updateSlideCounts() {
+            order.forEach(id => {
+                const f = document.getElementById(id);
+                try {
+                    const doc = f.contentDocument || f.contentWindow.document;
+                    const count = doc.querySelectorAll('.slide').length;
+                    if (count > 0) slideCounts[id] = count;
+                } catch (e) {
+                    // Cross-origin restriction might block this if files aren't on same folder/server
+                    console.warn("Could not auto-detect slides for " + id + ", using defaults.");
+                }
+            });
+        }
+
+        function rotateFrame() {
+            const currentId = order[idx];
+            const nextIdx = (idx + 1) % order.length;
+            const nextId = order[nextIdx];
+
+            // UI Transition
+            document.getElementById(currentId).classList.remove('active');
+            document.getElementById(nextId).classList.add('active');
+
+            // Move to next index
+            idx = nextIdx;
+
+            // Schedule the next jump based on the NEW frame's length
+            startTimer();
+        }
+
+        function startTimer() {
+            const currentId = order[idx];
+            const totalTime = slideCounts[currentId] * SLIDE_DURATION;
+            
+            console.log(`Switching to ${currentId}. Waiting ${totalTime}ms for ${slideCounts[currentId]} slides.`);
+            setTimeout(rotateFrame, totalTime);
+        }
+
+        // Initialize
+        window.onload = () => {
+            updateSlideCounts();
+            startTimer();
+        };
+    </script>
+</body>
+</html>

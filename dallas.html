@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Reset and Full Screen Layout with Teal Theme */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            /* Deep charcoal-teal background for better eye comfort */
+            background: radial-gradient(circle at center, #001a1a 0%, #000000 100%); 
+            color: #00ced1; /* Dark Turquoise */
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .location-label { 
+            height: 8vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(1rem, 3vw, 2.2rem); 
+            font-weight: bold; 
+            color: #004d4d; /* Muted deep teal */
+            text-transform: uppercase; 
+            letter-spacing: 3px;
+        }
+
+        /* Slide Container */
+        .slide { 
+            flex: 1; 
+            width: 100%; 
+            display: none; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            text-align: center;
+        }
+
+        /* Active slide override */
+        .slide[style*="display: block"] {
+            display: flex !important;
+        }
+
+        /* Text Scaling Logic - Normalized for Distance */
+        .big-clock { 
+            font-size: clamp(5rem, 22vw, 18rem); 
+            font-weight: bold; 
+            color: #20b2aa; /* Light Sea Green */
+            line-height: 0.9;
+            text-shadow: 0 0 30px rgba(32, 178, 170, 0.2);
+        }
+
+        .ampm { 
+            font-size: 0.35em; 
+            margin-left: 15px; 
+            color: #008b8b; /* Dark Cyan */
+        }
+
+        .date-box { 
+            display: flex;
+            flex-direction: column;
+            gap: 1vh;
+        }
+
+        .day-name { 
+            font-size: clamp(4rem, 15vw, 12rem); 
+            font-weight: bold; 
+            color: #40e0d0; /* Turquoise */
+            line-height: 1;
+        }
+
+        .full-date { 
+            font-size: clamp(2rem, 8vw, 6rem); 
+            color: #008080; /* Teal */
+            font-weight: bold;
+        }
+
+        .current-temp { 
+            font-size: clamp(8rem, 40vw, 30rem); 
+            font-weight: bold; 
+            color: #48d1cc; /* Medium Turquoise */
+            line-height: 0.8;
+            text-shadow: 0 0 50px rgba(72, 209, 204, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="location-label">Dallas, Texas, USA</div>
+    
+    <div id="p1" class="slide" style="display: block;">
+        <div id="clock-txt" class="big-clock">00:00:00</div>
+    </div>
+    
+    <div id="p2" class="slide">
+        <div class="date-box">
+            <span id="d-name" class="day-name">...</span>
+            <span id="d-full" class="full-date">...</span>
+        </div>
+    </div>
+    
+    <div id="p3" class="slide">
+        <div id="curr-t" class="current-temp">--°</div>
+    </div>
+
+    <script>
+        // Use updated API parameter for reliability
+        async function getWeather() {
+            try {
+                const res = await fetch('https://api.open-meteo.com');
+                const data = await res.json();
+                const temp = data.current ? data.current.temperature_2m : data.current_weather.temperature;
+                document.getElementById('curr-t').innerHTML = Math.round(temp) + "°";
+            } catch(e) {
+                console.error("Weather update failed");
+            }
+        }
+
+        function update() {
+            const local = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Chicago"}));
+            let h = local.getHours() % 12 || 12;
+            let m = local.getMinutes().toString().padStart(2, '0');
+            let s = local.getSeconds().toString().padStart(2, '0');
+            document.getElementById('clock-txt').innerHTML = `${h}:${m}:${s}<span class="ampm">${local.getHours() >= 12 ? 'PM' : 'AM'}</span>`;
+            
+            const dS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], 
+                  mS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            document.getElementById('d-name').innerHTML = dS[local.getDay()];
+            document.getElementById('d-full').innerHTML = `${local.getDate()} ${mS[local.getMonth()]} ${local.getFullYear()}`;
+        }
+
+        let page = 1;
+        function rotate() {
+            const slides = document.querySelectorAll('.slide');
+            slides.forEach(s => s.style.display = 'none');
+            page = (page % slides.length) + 1;
+            const nextSlide = document.getElementById('p' + page);
+            if (nextSlide) nextSlide.style.display = 'block';
+        }
+
+        setInterval(update, 1000);
+        setInterval(rotate, 7000);
+        setInterval(getWeather, 900000);
+        update(); 
+        getWeather();
+    </script>
+</body>
+</html>

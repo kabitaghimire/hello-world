@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sydney Smart Clock</title>
+    <style>
+        /* Reset and Full Screen Flex Layout */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #000; 
+            color: #e0e0e0; 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .location-label { 
+            height: 8vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(1rem, 3vw, 2.2rem); 
+            font-weight: bold; 
+            color: #444; 
+            text-transform: uppercase; 
+            letter-spacing: 2px; 
+        }
+
+        /* Slide Container */
+        .slide { 
+            flex: 1;
+            width: 100%; 
+            display: none; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center;
+            text-align: center; 
+        }
+
+        /* Support for JS display: block while maintaining Flex */
+        .slide[style*="display: block"] {
+            display: flex !important;
+        }
+
+        /* Time Scaling */
+        .big-clock { 
+            font-size: clamp(5rem, 22vw, 18rem); 
+            font-weight: bold; 
+            line-height: 1; 
+            color: #ffffff; 
+        }
+        .ampm { 
+            font-size: 0.4em; 
+            margin-left: 15px; 
+            color: #888; 
+        }
+        
+        /* Date Scaling */
+        .date-box { 
+            font-size: clamp(2.5rem, 10vw, 8rem); 
+            font-weight: bold; 
+            color: #aaa; 
+            line-height: 1.1; 
+        }
+        .date-day { 
+            display: block; 
+            color: #fff; 
+            font-size: clamp(4rem, 16vw, 14rem); 
+            margin-bottom: 10px; 
+        }
+        
+        /* Temp Scaling */
+        .current-temp { 
+            font-size: clamp(8rem, 40vw, 28rem); 
+            font-weight: bold; 
+            color: #fff; 
+        }
+        
+        /* Holiday Scaling */
+        .fest-box { 
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .fest-name { 
+            font-size: clamp(3rem, 11vw, 10rem); 
+            color: #ffffff; 
+            display: block; 
+            margin-bottom: 20px; 
+            text-shadow: 0 0 20px #ff6d00; 
+            line-height: 1.1;
+        }
+        .status-text { 
+            font-size: clamp(1.5rem, 5vw, 4rem);
+            color: #ffab40; 
+            text-transform: uppercase; 
+            letter-spacing: 5px; 
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="location-label">Sydney, Australia</div>
+
+    <div id="p1" class="slide" style="display: block;">
+        <div id="clock-txt" class="big-clock">--:--:--</div>
+    </div>
+
+    <div id="p2" class="slide">
+        <div id="date-txt" class="date-box">--</div>
+    </div>
+
+    <div id="p3" class="slide">
+        <div id="curr-t" class="current-temp">--°</div>
+    </div>
+
+    <div id="p4" class="slide">
+        <div class="fest-box">
+            <span id="holiday-title" class="fest-name">Holiday</span>
+            <div id="holiday-status" class="status-text">--</div>
+        </div>
+    </div>
+
+    <script>
+        const fallbackHolidays = [
+            { name: "Australia Day", date: new Date(2026, 0, 26) },
+            { name: "Good Friday", date: new Date(2026, 3, 3) },
+            { name: "Easter Monday", date: new Date(2026, 3, 6) },
+            { name: "Anzac Day", date: new Date(2026, 3, 25) },
+            { name: "King's Birthday", date: new Date(2026, 5, 8) },
+            { name: "Labour Day", date: new Date(2026, 9, 5) },
+            { name: "Christmas Day", date: new Date(2026, 11, 25) }
+        ];
+
+        let holidays = [];
+
+        async function loadHolidays() {
+            const year = new Date().getFullYear();
+            const cacheKey = `holidays_AU_NSW_${year}`;
+            try {
+                const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+                const now = Date.now();
+                if (cached && (now - cached.ts) < 24 * 60 * 60 * 1000 && Array.isArray(cached.data)) {
+                    holidays = cached.data.map(h => ({ name: h.localName || h.name, date: new Date(h.date) }));
+                    return;
+                }
+
+                const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/AU`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const filtered = data.filter(h => {
+                        if (!h.counties) return true;
+                        return Array.isArray(h.counties) && h.counties.includes('AU-NSW');
+                    });
+                    holidays = filtered.map(h => ({ name: h.localName || h.name, date: new Date(h.date) }));
+                    localStorage.setItem(cacheKey, JSON.stringify({ ts: now, data: filtered }));
+                    return;
+                }
+            } catch (e) { console.warn('Holiday fetch failed', e); }
+            holidays = fallbackHolidays;
+        }
+
+        async function getWeather() {
+            try {
+                const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-33.8482&longitude=151.0339&current_weather=true');
+                const data = await res.json();
+                document.getElementById('curr-t').innerHTML = Math.round(data.current_weather.temperature) + "°";
+            } catch(e) { document.getElementById('curr-t').innerHTML = "22°"; }
+        }
+
+        function update() {
+            const now = new Date();
+            const local = new Date(now.toLocaleString("en-US", {timeZone: "Australia/Sydney"}));
+            
+            let h = local.getHours() % 12 || 12;
+            let m = local.getMinutes().toString().padStart(2, '0');
+            let s = local.getSeconds().toString().padStart(2, '0');
+            let ampm = local.getHours() >= 12 ? 'PM' : 'AM';
+            document.getElementById('clock-txt').innerHTML = `${h}:${m}:${s}<span class="ampm">${ampm}</span>`;
+            
+            const dS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], 
+                  mS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            document.getElementById('date-txt').innerHTML = `<span class="date-day">${dS[local.getDay()]}</span>${local.getDate()} ${mS[local.getMonth()]} ${local.getFullYear()}`;
+            
+            const holidayList = (holidays && holidays.length) ? holidays : fallbackHolidays;
+            for (let hldy of holidayList) {
+                const hDate = new Date(hldy.date.getFullYear(), hldy.date.getMonth(), hldy.date.getDate());
+                const lDate = new Date(local.getFullYear(), local.getMonth(), local.getDate());
+                let diff = Math.ceil((hDate - lDate) / (1000 * 60 * 60 * 24));
+
+                if (diff === 0) {
+                    document.getElementById('holiday-title').innerHTML = hldy.name;
+                    document.getElementById('holiday-status').innerHTML = "Today";
+                    break;
+                } else if (diff > 0) {
+                    document.getElementById('holiday-title').innerHTML = hldy.name;
+                    document.getElementById('holiday-status').innerHTML = `${diff} Days Left`;
+                    break;
+                }
+            }
+        }
+
+        let page = 1;
+        function rotate() {
+            document.querySelectorAll('.slide').forEach(s => s.style.display = 'none');
+            page = (page % 4) + 1;
+            document.getElementById('p' + page).style.display = 'block';
+        }
+
+        loadHolidays();
+        update();
+        getWeather();
+
+        setInterval(update, 1000);
+        setInterval(rotate, 7000);
+        setInterval(getWeather, 900000);
+        setInterval(loadHolidays, 24 * 60 * 60 * 1000);
+    </script>
+</body>
+</html>

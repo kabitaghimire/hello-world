@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nepali Dashboard</title>
+    <style>
+    /* Reset and Layout */
+    body { 
+        font-family: 'Noto Sans Devanagari', sans-serif; 
+        background-color: #000; 
+        color: #ffd700; 
+        margin: 0; 
+        padding: 0; 
+        overflow: hidden; 
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .location-label { 
+        height: 8vh; /* Fixed height for label */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(1rem, 3vw, 2.5rem); 
+        font-weight: bold; 
+        color: #443300; 
+        text-transform: uppercase; 
+        letter-spacing: 2px;
+    }
+
+    /* Slide Container: Flex ensures children center perfectly without overflow */
+    .slide { 
+        flex: 1; /* Occupies remaining screen height */
+        width: 100%; 
+        display: none; 
+        flex-direction: column;
+        align-items: center; 
+        justify-content: center; /* Vertical Center */
+        text-align: center;
+    }
+
+    /* Active slide display override */
+    .slide[style*="display: block"] {
+        display: flex !important;
+    }
+
+    /* Scaling Logic: clamp(MIN, PREFERRED, MAX) */
+    .big-clock { 
+        font-size: clamp(5rem, 25vw, 20rem); 
+        font-weight: bold; 
+        color: #ffeb3b; 
+        line-height: 0.9;
+    }
+
+    .ampm { 
+        font-size: 0.35em; /* Scaled relative to parent clock size */
+        margin-left: 10px; 
+        color: #c6a700; 
+    }
+
+    .date-box { 
+        font-size: clamp(3rem, 12vw, 11rem); 
+        font-weight: bold; 
+        color: #fbc02d; 
+        line-height: 1.1;
+    }
+
+    .tithi-box { 
+        font-size: clamp(2rem, 8vw, 7rem); 
+        color: #9a7d0a; 
+        font-weight: bold; 
+        margin-top: 2vh;
+    }
+
+    .current-temp { 
+        font-size: clamp(6rem, 35vw, 28rem); 
+        font-weight: bold; 
+        color: #ff9800; 
+        line-height: 0.8;
+    }
+
+    .weather-desc { 
+        font-size: clamp(2rem, 8vw, 6rem); 
+        color: #ffd54f; 
+    }
+
+    .fest-name { 
+        font-size: clamp(3rem, 10vw, 9rem); 
+        font-weight: bold; 
+        color: #ff5722; 
+        margin-bottom: 2vh;
+        padding: 0 20px;
+    }
+
+    .fest-countdown { 
+        font-size: clamp(2rem, 7vw, 6rem); 
+        color: #ffeb3b; 
+    }
+</style>
+
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bikram-sambat@1.8.0/src/index.js"></script>
+</head>
+<body>
+
+    <div class="location-label">Kathmandu, Nepal</div>
+
+    <div id="p1" class="slide" style="display: block;">
+        <div class="big-clock" id="clock-txt">००:००:००</div>
+    </div>
+
+    <div id="p2" class="slide">
+        <div class="date-box" id="date-txt">लोड हुँदै...</div>
+        <div class="tithi-box" id="tith-txt">...</div>
+    </div>
+
+    <div id="p3" class="slide">
+        <div class="current-temp" id="temp-txt">--°</div>
+        <div class="weather-desc" id="weather-desc">मौसम...</div>
+    </div>
+
+    <div id="p4" class="slide">
+        <div class="fest-name" id="fest-title">चाडपर्व</div>
+        <div class="fest-countdown"><span id="fest-days">--</span> दिन बाँकी</div>
+    </div>
+
+    <script>
+        const toNp = n => n.toString().replace(/\d/g, d => "०१२३४५६७८९"[d]);
+
+        const nepaliAstroCalendar = {};
+
+        function setFestDays(n) {
+            const container = document.querySelector('.fest-countdown');
+            if (!container) return;
+            if (n === 0) {
+                container.innerHTML = `<span id="fest-days">आज</span>`;
+            } else {
+                container.innerHTML = `<span id="fest-days">${toNp(n)}</span> दिन बाँकी`;
+            }
+        }
+
+        async function updateWeather() {
+            try {
+                const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=27.7172&longitude=85.3240&current_weather=true");
+                const data = await res.json();
+                document.getElementById('temp-txt').innerHTML = toNp(Math.round(data.current_weather.temperature)) + "°";
+                const codes = {0: "सफा आकाश", 1: "मुख्यतया सफा", 2: "आंशिक बदली", 3: "बदली", 45: "कुहिरो", 61: "हल्का वर्षा"};
+                document.getElementById('weather-desc').innerHTML = codes[data.current_weather.weathercode] || "सफा";
+            } catch (e) {}
+        }
+
+        function updateClock() {
+            const local = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kathmandu"}));
+            let h = local.getHours() % 12 || 12;
+            let m = local.getMinutes().toString().padStart(2, '0');
+            let s = local.getSeconds().toString().padStart(2, '0');
+            document.getElementById('clock-txt').innerHTML = toNp(`${h}:${m}:${s}`) + `<span class="ampm">${local.getHours() >= 12 ? 'PM' : 'AM'}</span>`;
+        }
+
+        function convertADtoBS(adDate) {
+            const year = adDate.getFullYear();
+            const month = adDate.getMonth() + 1;
+            const day = adDate.getDate();
+            if (year === 2026) {
+                if (month === 1) {
+                    const janMapping = {15:1,16:2,17:3,18:4,19:5,20:6,21:7,22:8,23:9,24:10,25:11,26:12,27:13,28:14,29:15,30:16,31:17};
+                    const bsDay = janMapping[day];
+                    if (bsDay) return { year: 2082, month: 10, date: bsDay };
+                }
+                if (month === 2) {
+                    const febMapping = {1:18,2:19,3:20,4:21,5:22,6:23,7:24,8:25,9:26,10:27,11:28,12:29};
+                    const bsDay = febMapping[day];
+                    if (bsDay) return { year: 2082, month: 10, date: bsDay };
+                }
+            }
+            return { year: 2082, month: 10, date: 12 };
+        }
+
+        function getNepaliMonthName(month) {
+            const months = {1: "बैसाख", 2: "जेष्ठ", 3: "अषाढ", 4: "श्रावण", 5: "भाद्र", 6: "अश्विन", 7: "कार्तिक", 8: "मङ्सिर", 9: "पौष", 10: "माघ", 11: "फाल्गुण", 12: "चैत्र"};
+            return months[month] || "...";
+        }
+
+        async function syncNepaliCalendar() {
+            const local = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kathmandu"}));
+            try {
+                const bs = convertADtoBS(local);
+                const monthName = getNepaliMonthName(bs.month);
+                document.getElementById('date-txt').innerHTML = `${toNp(bs.year)} ${monthName} ${toNp(bs.date)}`;
+                const apiUrl = `https://raw.githubusercontent.com/S4NKALP/nepali-calendar-api/main/data/${bs.year}/${String(bs.month).padStart(2, '0')}.json`;
+                const response = await fetch(apiUrl);
+                if (response.ok) {
+                    const data = await response.json();
+                    let todayData = null;
+                    const targetNepaliDay = toNp(bs.date);
+                    for (let day of data.days) {
+                        if (day.n === targetNepaliDay) { todayData = day; break; }
+                    }
+                    if (todayData) {
+                        if (todayData.t) { document.getElementById('tith-txt').innerHTML = `तिथि: ${todayData.t}`; }
+                        else { document.getElementById('tith-txt').innerHTML = "तिथि: ..."; }
+                        if (todayData.f) { document.getElementById('fest-title').innerHTML = todayData.f; setFestDays(0); }
+                        else {
+                            let nextFest = null; let nextDayNum = null;
+                            for (let day of data.days) {
+                                if (day.n && day.f) {
+                                    let dayNum = 0;
+                                    for (let i = 0; i < day.n.length; i++) {
+                                        const char = day.n[i];
+                                        const nepaliDigit = "०१२३४५६७८९".indexOf(char);
+                                        if (nepaliDigit >= 0) { dayNum = dayNum * 10 + nepaliDigit; }
+                                    }
+                                    if (dayNum > bs.date) { nextFest = day; nextDayNum = dayNum; break; }
+                                }
+                            }
+                            if (nextFest) { document.getElementById('fest-title').innerHTML = nextFest.f; setFestDays(nextDayNum - bs.date); }
+                            else {
+                                const nextMonth = bs.month === 12 ? 1 : bs.month + 1;
+                                const nextYear = bs.month === 12 ? bs.year + 1 : bs.year;
+                                const nextApiUrl = `https://raw.githubusercontent.com/S4NKALP/nepali-calendar-api/main/data/${nextYear}/${String(nextMonth).padStart(2, '0')}.json`;
+                                const nextResponse = await fetch(nextApiUrl);
+                                if (nextResponse.ok) {
+                                    const nextData = await nextResponse.json();
+                                    const nextMonthFest = nextData.days.find(d => d.f);
+                                    if (nextMonthFest) {
+                                        let maxDay = 0;
+                                        for (let day of data.days) {
+                                            if (day.n) {
+                                                let dayNum = 0;
+                                                for (let i = 0; i < day.n.length; i++) {
+                                                    const char = day.n[i];
+                                                    const nepaliDigit = "०१२३४५६७८९".indexOf(char);
+                                                    if (nepaliDigit >= 0) { dayNum = dayNum * 10 + nepaliDigit; }
+                                                }
+                                                maxDay = Math.max(maxDay, dayNum);
+                                            }
+                                        }
+                                        let nextFestNum = 0;
+                                        for (let i = 0; i < nextMonthFest.n.length; i++) {
+                                            const char = nextMonthFest.n[i];
+                                            const nepaliDigit = "०१२३४५६७८९".indexOf(char);
+                                            if (nepaliDigit >= 0) { nextFestNum = nextFestNum * 10 + nepaliDigit; }
+                                        }
+                                        const daysRemaining = maxDay - bs.date;
+                                        document.getElementById('fest-title').innerHTML = nextMonthFest.f;
+                                        setFestDays(daysRemaining + nextFestNum);
+                                    }
+                                }
+                            }
+                        }
+                    } else { throw new Error("Today's data not found in API"); }
+                } else { throw new Error("API fetch failed: " + response.status); }
+            } catch (e) {
+                const bs = convertADtoBS(local);
+                const dayOfMonth = bs.date; let tithi, phase;
+                if (dayOfMonth <= 15) { tithi = dayOfMonth; phase = "शुक्ल"; } else { tithi = dayOfMonth - 15; phase = "कृष्ण"; }
+                document.getElementById('tith-txt').innerHTML = `तिथि: ${phase} ${toNp(tithi)}`;
+                document.getElementById('fest-title').innerHTML = "चाडपर्व";
+                setFestDays(0);
+            }
+        }
+
+        let page = 1;
+        function rotate() { document.querySelectorAll('.slide').forEach(s => s.style.display = 'none'); page = (page % 4) + 1; document.getElementById('p' + page).style.display = 'block'; }
+
+        setInterval(updateClock, 1000);
+        setInterval(rotate, 7000);
+        setInterval(updateWeather, 600000);
+        setInterval(syncNepaliCalendar, 3600000);
+
+        updateClock(); updateWeather(); syncNepaliCalendar();
+
+    </script>
+</body>
+</html>
